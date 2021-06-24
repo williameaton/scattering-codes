@@ -1,3 +1,8 @@
+# File script to generate scattering models for synthetic studies. Could be converted into one main function but easier to run as a file script from the command line. 
+# All classes and functions are defined at top
+# Parameters can be defined at the bottom of script for model. 
+
+
 # Imports
 import numpy as np
 import math
@@ -6,27 +11,29 @@ import scipy.special as ss
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# Define classes:
+# Define classes
 
+
+# Class for creating 3D model objects:
 class model(object):
     def __init__(self, x_lim, y_lim, z_lim, elements_per_wavelength, dominant_freq, min_velocity, oversaturation=1):
-        self.x_lim = x_lim
-        self.y_lim = y_lim
-        self.z_lim = z_lim
-        self.elements_per_wavelength = elements_per_wavelength
-        self.freq = dominant_freq
-        self.min_velocity = min_velocity
-
-
+        # Note that oversaturation can be used to define a mesh resolution above that which is necessary from the freq/vel etc.
+        self.x_lim = x_lim  # x-axis limit of model 
+        self.y_lim = y_lim  # y-axis limit of model  
+        self.z_lim = z_lim  # z-axis limit of model 
+        self.elements_per_wavelength = elements_per_wavelength # epw
+        self.freq = dominant_freq  # dominant frequency for the model which defines the mesh spacing 
+        self.min_velocity = min_velocity # minimum velocity also defines the grid spacing 
 
         # Calculate min wavelength from frequency and min velocity
         self.min_wavelength = min_velocity/dominant_freq
 
-        # Calculate the number of elements in each dimension based on domain size, min wavelength and elements per wavelength
+        # Calculate the number of elements in each dimension based on domain size, min. wavelength and elements per wavelength
         self.nx = oversaturation*math.ceil((x_lim[1] - x_lim[0])*elements_per_wavelength/self.min_wavelength)
         self.ny = oversaturation*math.ceil((y_lim[1] - y_lim[0])*elements_per_wavelength/self.min_wavelength)
         self.nz = oversaturation*math.ceil((z_lim[1] - z_lim[0])*elements_per_wavelength/self.min_wavelength)
 
+        # Store data of initial model parameters
         self.padding = np.array([0, 0, 0])
         self.original_shape = np.array([self.nx, self.ny, self.nz])
 
@@ -41,7 +48,7 @@ class model(object):
         self.dy = self.y_length / self.ny
         self.dz = self.z_length / self.nz
 
-        # Define a default background model arrays for Rho, Vp and Vs which are zeros 3D arrays of the correct size:
+        # Define a default background 3D model arrays for Rho, Vp and Vs which are zeros 3D arrays of the correct size:
         self.bm_rho = np.zeros((self.nx, self.ny, self.nz))
         self.bm_vp  = np.zeros((self.nx, self.ny, self.nz))
         self.bm_vs  = np.zeros((self.nx, self.ny, self.nz))
@@ -49,24 +56,24 @@ class model(object):
         self.unpadded_n = np.array([self.nx, self.ny, self.nz])
 
 
-
+# Class for generating sphere objects which may then be injected into the model 
 class sphere():
     def __init__(self, sphere, vp, vs, rho, radius):
-        self.sphere = sphere
-        self.vp = vp
-        self.vs = vs
-        self.rho = rho
-        self.centre = np.array([0,0,0]) # by default
-        self.n_centre = np.array([0,0,0]) # by default
-        self.radius = radius
+        self.sphere = sphere # Array that holds the sphere (3D array of 1 or 0 entries that has spherical structure)
+        self.vp = vp # Vp for sphere
+        self.vs = vs # Vs for sphere
+        self.rho = rho # Density for sphere
+        self.centre = np.array([0,0,0]) # coordinates for the centre of sphere within the model
+        self.n_centre = np.array([0,0,0]) 
+        self.radius = radius # Sphere radius 
 
-        # Calculate the index within the sphere array of the centre point of that array
+        # Get the index values of the sphere array for the centre point of that array
         self.sa_centre = np.array([0,0,0])
         for i in range(3):
             self.sa_centre[i] = np.floor(np.asarray(self.sphere.shape)[i]/2)
 
 
-
+    # Functions to update sphere properties: 
     def set_radius(self, radius):
         self.radius = radius
 
@@ -81,6 +88,7 @@ class sphere():
 
     def set_centre(self, centre, model, print_conf='n'):
         self.centre = centre
+        
         # Initialise centre:
         self.n_centre = np.array([0, 0, 0])
 
@@ -100,7 +108,15 @@ class sphere():
 # _____________________________________________________________________________________________________________________________________________________
 
 def gen_sphere(m, radius, RHO, VP, VS, print_time='n'):
-
+    # INPUT VARIABLES: 
+    # m [Model object]      - Instance of Model class required so grid spacing data etc can be extracted
+    # radius [int, float]   - Radius of sphere
+    # RHO, VP, VS [float]   - Physical properties of sphere 
+    
+    # OUTPUT: 
+    # sphere_instance       - Returns instance of sphere object
+    
+    
     # Calculate domain sizes for scaling:
     x_len = m.x_lim[1] - m.x_lim[0]
     y_len = m.y_lim[1] - m.y_lim[0]
@@ -119,7 +135,7 @@ def gen_sphere(m, radius, RHO, VP, VS, print_time='n'):
     z_loop = int(radius // dz)
 
     # Create spare array that holds sphere info for duplicate spheres
-    # This will store values of '1' or '0' for whether the element is within the sphere radius
+    # This will store values of '1' or '0' for whether the element is within the sphere radius (1) or not (0)
     sph = np.zeros((int(x_loop+1), int(y_loop+1), int(z_loop+1)))
 
 
@@ -148,8 +164,21 @@ def gen_sphere(m, radius, RHO, VP, VS, print_time='n'):
     return sphere_instance
 
 
+# Alternative sphere generation function in which an extra spherical shell is added to the outer of the original sphere with a gaussian taper (i.e. perturbation strength tapers from 100 % to 0 % of its original value) within this extra sphere.  
 def gen_sphere_gaussian(m, radius, RHO, VP, VS, buffer=3, falloff=1, print_time='n'):
-
+    # INPUT VARIABLES: 
+    # m [Model object]      - Instance of Model class required so grid spacing data etc can be extracted
+    # radius [int, float]   - Radius of sphere
+    # RHO, VP, VS [float]   - Physical properties of sphere 
+    # buffer [int]          - Extra shell size (buffer) 
+    # falloff [int]         - Falloff of gaussian taper (i.e related to the std dev of the gaussian)
+    # print_time [str]      - Used for develop to test efficiency of functions - use 'y' or 'yes' to print
+    
+    # OUTPUT: 
+    # sphere_instance       - Returns instance of sphere object
+    
+        
+    
     # Calculate domain sizes for scaling:
     x_len = m.x_lim[1] - m.x_lim[0]
     y_len = m.y_lim[1] - m.y_lim[0]
@@ -202,7 +231,6 @@ def gen_sphere_gaussian(m, radius, RHO, VP, VS, buffer=3, falloff=1, print_time=
     return sphere_instance
 
 
-
     # Get non-zero values of injects:
     truth_vp = vp_inj != 0
     truth_vs = vs_inj != 0
@@ -212,10 +240,6 @@ def gen_sphere_gaussian(m, radius, RHO, VP, VS, buffer=3, falloff=1, print_time=
     model.bm_vp[lb[0]:ub[0], lb[1]:ub[1] ,lb[2]:ub[2]][truth_vp] = vp_inj[truth_vp]
     model.bm_vs[lb[0]:ub[0], lb[1]:ub[1] ,lb[2]:ub[2]][truth_vs ]= vs_inj[truth_vs]
     model.bm_rho[lb[0]:ub[0], lb[1]:ub[1] ,lb[2]:ub[2]][truth_rho] += rho_inj[truth_vp]
-
-
-
-
 
 
 
@@ -242,6 +266,8 @@ def centre_create(model, mfp, domain, spec_domain,  type='edge'):
         xyz = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
         return(xyz)
 # _____________________________________________________________________________________________________________________________________________________
+
+
 def slice_sphere(sph, model, print_conf='N'):
     # Extract the sphere array
     sph_array = sph.sphere
@@ -374,7 +400,8 @@ def writeNetCDF(m, filename):
     f.close()
 # _______________________________________________________________________________________________________________________________________________________
 
-
+# EXAMPLE INPUT PARAMETERS TO GENERATE MODEL 
+# Would reccommend using SI units only - e.g below uses 250 km for x and y with 125 km for z dimension
 
 # RUN SCRIPT:
 # Model dimensions
@@ -385,7 +412,7 @@ z = np.array([0, 125000])
 
 freq = 2 # Hz
 min_vel = 3000 # m/s
-epw = 3
+epw = 3 # Note that changing the EPW will dramatically change the size of the output model file
 
 
 # Create model class
@@ -398,7 +425,7 @@ rho_ptb = -0.2
 
 
 sphere_rad_wavelengths = 1 # Sphere radius in wavelengths
-mfp = 2 # In wavelengths
+mfp = 2 # In wavelengths (mfp is distance between spheres - mean free path)
 
 
 # Generate spheres:

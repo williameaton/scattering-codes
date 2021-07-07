@@ -1,10 +1,14 @@
+# Imports
 import numpy as np
 from obspy import read
 import sys
 
+# Function is currently used and script written so that it may be easily called in a shell script but can be edited slightly to work as a single script, so long as variables are defined in-script.
+
+
 def gen_mse_slices(input_fname, slice_length, overlap, out_name=''):
     # Import trace/data:
-    data = read(input_fname)
+    imported_data = read(input_fname)
     print('Data loaded...')
 
 
@@ -12,7 +16,7 @@ def gen_mse_slices(input_fname, slice_length, overlap, out_name=''):
     for ch in range(len(data)):
 
         # Calculating number of slices
-        trace = data[ch].data
+        trace = imported_data[ch].data
         data_len = len(trace)
         no_slices = int(np.floor((data_len-overlap)/(slice_length - overlap)))
 
@@ -28,6 +32,7 @@ def gen_mse_slices(input_fname, slice_length, overlap, out_name=''):
 
 
         # If output name is undefined then will be a modified version of input file:
+        # The naming needs updating for greater flexibility throughout these scripts
         if out_name == '': 
             out_fname = f"./SLICES_{input_fname}_ch{ch}.txt"
         else:
@@ -40,6 +45,7 @@ def gen_mse_slices(input_fname, slice_length, overlap, out_name=''):
 if __name__ == "__main__":
 
     # Get args from input:
+    # Definitely need to fine a more elegant way of writing this. 
     input_fname = sys.argv[1]
     slice_length = int(sys.argv[2])
     overlap = int(sys.argv[3])

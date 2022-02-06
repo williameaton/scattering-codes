@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # USER DEFINE VARIABLES: 
 
 # First define the variables for downloading the mars data: 

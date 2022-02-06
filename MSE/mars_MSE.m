@@ -1,5 +1,5 @@
 
-function [] = mars_MSE(r, tau, scale, input_path, output_folder, output_file)
+%function [] = mars_MSE(r, tau, scale, input_path, output_folder, output_file)
 
     % ___________________________________________________________________________
     % Description: 
@@ -18,7 +18,14 @@ function [] = mars_MSE(r, tau, scale, input_path, output_folder, output_file)
     %   movavg_mse
     % ___________________________________________________________________________
 
+    r = 0.1
+    tau = 30
+    scale = 50
+    input_path = "./example_mars_data" 
+    output_folder = "./TEST/"
+    output_file = "test.txt"
 	
+
 	% If variables are accidently inputted as strings: 
 	if isa(tau, 'char')
 	tau = str2num(tau)
